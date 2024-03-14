@@ -59,10 +59,10 @@ typeset -gA JOVIAL_SYMBOL=(
 
     ## preset arrows
     # arrow '─>'
-    # arrow '─▶'
-    arrow '─➤'
-    arrow.git-clean '(๑˃̵ᴗ˂̵)و'
-    arrow.git-dirty '(ﾉ˚Д˚)ﾉ'
+    arrow '─▶'
+    # arrow '─➤'
+    # arrow.git-clean '(๑˃̵ᴗ˂̵)و'
+    # arrow.git-dirty '(ﾉ˚Д˚)ﾉ'
 )
 
 
@@ -86,6 +86,9 @@ typeset -gA JOVIAL_PALETTE=(
 
     # only root user
     root '%B%F{203}'
+
+    #firebase project
+    firebase '%F{202}'
 
     # current work dir path
     path '%B%F{228}%}'
@@ -120,7 +123,7 @@ typeset -gA JOVIAL_PALETTE=(
 )
 
 # parts dispaly order from left to right of jovial theme at the first line 
-typeset -ga JOVIAL_PROMPT_ORDER=( host user path dev-env git-info )
+typeset -ga JOVIAL_PROMPT_ORDER=( host user path dev-env git-info firebase )
 
 # prompt parts priority from high to low, for `responsive design`.
 # decide whether to still keep dispaly while terminal width is no enough;
@@ -130,6 +133,7 @@ typeset -ga JOVIAL_PROMPT_ORDER=( host user path dev-env git-info )
 typeset -ga JOVIAL_PROMPT_PRIORITY=(
     path
     git-info
+    firebase
     user
     host
     dev-env
@@ -244,7 +248,7 @@ typeset -gA JOVIAL_AFFIXES=(
     while [[ ${parent_path} != "/" && ${current_path} != "${HOME}" ]]; do
         if [[ -e ${current_path}/${target} ]]; then
             if ${whether_output}; then
-                echo "${current_path}";
+                echo -e "${current_path}";
             fi
             return 0
         fi
@@ -309,7 +313,7 @@ typeset -gA jovial_async_callbacks=()
     ${handler}
 
     # always print new line to avoid handler has not any output that cannot trigger callback
-    echo ''
+    echo -e ''
 }
 
 # callback for zle, forward zpty output to really job callback
@@ -405,6 +409,7 @@ typeset -gA jovial_previous_parts=() jovial_previous_lengths=()
         path            ''
         dev-env         ''
         git-info        ''
+        firebase        ''
         current-time    ''
         typing          ''
         venv            ''
@@ -501,6 +506,45 @@ typeset -gA jovial_affix_lengths=()
     jovial_parts[path]="${JOVIAL_AFFIXES[path.prefix]}${JOVIAL_PALETTE[path]}${jovial_parts[path]}${JOVIAL_AFFIXES[path.suffix]}"
 }
 
+@jov.set_firebase_project() {
+    firebase_section() {
+    local SPACESHIP_FIREBASE_SYMBOL="🔥 "
+    # check if firebase-tools cli is installed
+     # todo: create a function that checks if the cli exists
+    # firebase || return
+
+
+    # firebase-cli creates this config file with all the settings
+    local file=~/.config/configstore/firebase-tools.json
+    if [ ! -f "$file" ]; then
+    return
+    fi
+    local currentDir=$(pwd)
+    # big thanks to https://github.com/jozefcipa/zsh-firebase-prompt for the actual implementation
+    current_project=$(
+    cat $file |
+    jq --arg currentDir $currentDir '
+    [
+    .activeProjects
+    | to_entries[]
+    | .key as $key
+    | select($currentDir | startswith($key))
+    ] | [
+    sort_by(.key | length)
+    | reverse[]
+    ] | .[0].value'
+    )
+
+    if [ "$current_project" != "null" ]; then
+    # remove the quotations
+    current_project=$(echo $current_project | awk '{gsub(/[\"]/, "", $1)} {print $1" "}')
+
+        echo "$SPACESHIP_FIREBASE_SYMBOL$current_project"
+    fi
+    }
+    local firebase_section = $(firebase_section)
+  jovial_parts[firebase]=" ${JOVIAL_PALETTE[firebase]}$(firebase_section)"
+}
 
 @jov.align-previous-right() {
     # References:
@@ -603,7 +647,7 @@ typeset -gA jovial_affix_lengths=()
             local node_prompt_prefix="${JOVIAL_PALETTE[normal]}[${JOVIAL_PALETTE[error]}need "
             local node_prompt="Nodejs${JOVIAL_PALETTE[normal]}]"
         fi
-        echo "${node_prompt_prefix}${node_prompt}"
+        echo -e "${node_prompt_prefix}${node_prompt}"
     fi
 }
 
@@ -623,7 +667,7 @@ typeset -gA jovial_affix_lengths=()
             local go_prompt_prefix="${JOVIAL_PALETTE[normal]}[${JOVIAL_PALETTE[error]}need "
             local go_prompt="Golang${JOVIAL_PALETTE[normal]}]"
         fi
-        echo "${go_prompt_prefix}${go_prompt}"
+        echo -e "${go_prompt_prefix}${go_prompt}"
     fi
 }
 
@@ -632,12 +676,12 @@ typeset -gA jovial_affix_lengths=()
     if @jov.rev-parse-find "composer.json"; then
         if @jov.iscommand php; then
             local php_prompt_prefix="${JOVIAL_PALETTE[conj.]}using "
-            local php_prompt="%F{105}php `\php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION . "." . PHP_RELEASE_VERSION . "\n";'`"
+            local php_prompt="%F{105}php `\php -r 'echo -e PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION . "." . PHP_RELEASE_VERSION . "\n";'`"
         else
             local php_prompt_prefix="${JOVIAL_PALETTE[normal]}[${JOVIAL_PALETTE[error]}need "
             local php_prompt="php${JOVIAL_PALETTE[normal]}]"
         fi
-        echo "${php_prompt_prefix}${php_prompt}"
+        echo -e "${php_prompt_prefix}${php_prompt}"
     fi
 }
 
@@ -646,7 +690,7 @@ typeset -gA jovial_affix_lengths=()
 
     if [[ -n ${VIRTUAL_ENV} ]] && @jov.rev-parse-find "venv"; then
         local python_prompt="%F{123}`$(@jov.rev-parse-find venv '' true)/venv/bin/python --version 2>&1`"
-        echo "${python_prompt_prefix}${python_prompt}"
+        echo -e "${python_prompt_prefix}${python_prompt}"
         return 0
     fi
 
@@ -659,7 +703,7 @@ typeset -gA jovial_affix_lengths=()
             python_prompt_prefix="${JOVIAL_PALETTE[normal]}[${JOVIAL_PALETTE[error]}need "
             local python_prompt="Python${JOVIAL_PALETTE[normal]}]"
         fi
-        echo "${python_prompt_prefix}${python_prompt}"
+        echo -e "${python_prompt_prefix}${python_prompt}"
     fi
 }
 
@@ -674,7 +718,7 @@ typeset -ga JOVIAL_DEV_ENV_DETECT_FUNCS=(
     for segment_func in ${JOVIAL_DEV_ENV_DETECT_FUNCS[@]}; do
         local segment=`${segment_func}`
         if [[ -n ${segment} ]]; then 
-            echo "${segment}"
+            echo -e "${segment}"
             break
         fi
     done
@@ -799,7 +843,7 @@ typeset -ga JOVIAL_DEV_ENV_DETECT_FUNCS=(
         action="|${action}"
     fi
 
-    echo "${action}"
+    echo -e "${action}"
 }
 
 @jov.git-branch() {
@@ -812,7 +856,7 @@ typeset -ga JOVIAL_DEV_ENV_DETECT_FUNCS=(
       || return 0
     ref="${ref#refs/heads/}"
 
-    echo "${ref}"
+    echo -e "${ref}"
 }
 
 
@@ -944,6 +988,7 @@ add-zsh-hook preexec @jov.exec-timestamp
     @jov.set-host-name
     @jov.set-user-name
     @jov.set-current-dir
+    @jov.set_firebase_project
     @jov.set-typing-pointer
     @jov.set-venv-info
 }
@@ -961,6 +1006,7 @@ add-zsh-hook precmd @jov.prompt-prepare
         path ''
         dev-env ''
         git-info ''
+        firebase ''
         current-time ''
         typing ''
         venv ''
@@ -1001,8 +1047,8 @@ add-zsh-hook precmd @jov.prompt-prepare
     local corner_top="${prompts[margin-line]}${JOVIAL_PALETTE[normal]}${JOVIAL_SYMBOL[corner.top]}"
     local corner_bottom="${sgr_reset}${JOVIAL_PALETTE[normal]}${JOVIAL_SYMBOL[corner.bottom]}"
 
-    echo "${corner_top}${(j..)ordered_parts}${prompts[current-time]}"
-    echo "${corner_bottom}${prompts[typing]}${prompts[venv]} ${sgr_reset}"
+    echo -e "${corner_top}${(j..)ordered_parts}${prompts[current-time]}"
+    echo -e "${corner_bottom}${prompts[typing]}${prompts[venv]} ${sgr_reset}"
 }
 
 
